@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skincare Product Feedback</title>
+    <style>
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: poppins;
+            line-height: 1.6;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header{
+        display: flex;
+        height: 150px;
+        }
+
+        .brand{
+            width: 50%;
+        }
+        .brand h1{
+            text-transform: uppercase;
+            font-family: rog fonts;
+            font-size: 40px;
+            font-weight: 500;
+            color: #3232f1;
+            padding: 20px 30px 0px;
+        }
+
+        .navbar{
+            font-size: 20px;
+            font-weight: 600;
+            width: 50%;
+            color: #3232f1; 
+            display: flex;
+            justify-content:flex-end;
+            margin-right: 40px;
+            margin-top: 30px;
+        }
+
+        .navbar a{
+            text-decoration: none;
+            padding-right: 40px;     
+        }
+
+        .navbar a:hover {
+            color: #3232f1;
+        }
+            
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #3232f1;
+            margin-bottom: 10px;
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+        }
+        
+        .header p {
+            color: #2e2e9d;
+            font-size: clamp(0.9rem, 3vw, 1.1rem);
+        }
+        
+        .feedback-form {
+            background-color: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4f4f9b;
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
+        }
+        
+        input[type="text"],
+        input[type="email"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
+        }
+        
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        
+        .rating-container {
+            margin-bottom: 10px;
+        }
+        
+        .rating {
+            display: flex;
+            color: #4f4f9b;
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            width: 100%;
+            justify-content: space-between;
+        }
+        
+        .rating-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .rating-circle {
+            height: clamp(30px, 8vw, 40px);
+            width: clamp(30px, 8vw, 40px);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            background-color: white;
+            border: 2px solid #ddd;
+            color: #4f4f9b;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            font-size: clamp(0.8rem, 3vw, 1rem);
+        }
+        
+        .rating-circle.selected {
+            background-color: #3232f1;
+            border-color: #3232f1;
+            color: white;
+        }
+        
+        .rating-text {
+            font-size: clamp(0.6rem, 2vw, 0.8rem);
+            color: #4f4f9b;
+            text-align: center;
+        }
+        
+        button {
+            background-color: #3232f1;
+            color: white;
+            border: 2px solid #3232f1;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
+            font-weight: 600;
+            transition: background-color 0.3s;
+            width: 100%;
+            max-width: 300px;
+            display: block;
+            margin: 0 auto;
+        }
+        
+        button:hover {
+            background-color: white;
+            color: #3232f1;
+        }
+        
+        .thank-you {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .thank-you h2 {
+            color: #3232f1;
+            font-size: clamp(1.3rem, 4vw, 2rem);
+            margin-bottom: 15px;
+        }
+        
+        .thank-you p {
+            color: #3f3f9d;
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
+            margin-bottom: 20px;
+        }
+        
+        /* Small screens */
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .feedback-form {
+                padding: 15px;
+                border-radius: 8px;
+            }
+            
+            .form-group {
+                margin-bottom: 15px;
+            }
+            
+            .rating {
+                padding: 10px 5px;
+            }
+            
+            .rating-option {
+                margin: 0 2px;
+            }
+            
+            .rating-circle {
+                height: 30px;
+                width: 30px;
+                margin-bottom: 3px;
+            }
+            
+            textarea {
+                height: 100px;
+            }
+        }
+        
+        /* Medium screens */
+        @media (min-width: 481px) and (max-width: 768px) {
+            .rating-option {
+                margin: 0 5px;
+            }
+            
+            .rating-circle {
+                height: 35px;
+                width: 35px;
+            }
+        }
+        
+        /* Landscape orientation on mobile */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header {
+                margin-bottom: 15px;
+            }
+            
+            .form-group {
+                margin-bottom: 10px;
+            }
+            
+            textarea {
+                height: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand">
+            <h1>glowguide</h1>
+        </div>
+        <div class="navbar">
+            <div><a href="index.html">Home</a></div>
+            <div><a href="about.html" >About Us</a></div>
+            <div><a href="feedback.html" style="color: #3232f1;">Feedback</a></div>
+        </div>
+    </header>
+    <div class="container">
+        <div class="header">
+            <h1>Your Feedback Matters</h1>
+            <p>Help us improve our skincare products by sharing your experience</p>
+        </div>
+        
+        <div class="feedback-form" id="feedbackForm">
+            <form id="skincareFeedback" onsubmit="return submitFeedback(event)">
+                <div class="form-group">
+                    <label for="name">Your Name</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="product">Product Name</label>
+                    <input type="text" id="product" name="product" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="usagePeriod">How long have you been using this product?</label>
+                    <select id="usagePeriod" name="usagePeriod" required>
+                        <option value="">Please select</option>
+                        <option value="less than a week">Less than a week</option>
+                        <option value="1-2 weeks">1-2 weeks</option>
+                        <option value="2-4 weeks">2-4 weeks</option>
+                        <option value="1-3 months">1-3 months</option>
+                        <option value="3-6 months">3-6 months</option>
+                        <option value="over 6 months">Over 6 months</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>How would you rate this product?</label>
+                    <input type="hidden" id="rating" name="rating" value="" required>
+                    <div class="rating">
+                        <div class="rating-option">
+                            <div class="rating-circle" id="circle1" onclick="setRating(1)">1</div>
+                            <div class="rating-text">Very Poor</div>
+                        </div>
+                        
+                        <div class="rating-option">
+                            <div class="rating-circle" id="circle2" onclick="setRating(2)">2</div>
+                            <div class="rating-text">Poor</div>
+                        </div>
+                        
+                        <div class="rating-option">
+                            <div class="rating-circle" id="circle3" onclick="setRating(3)">3</div>
+                            <div class="rating-text">Average</div>
+                        </div>
+                        
+                        <div class="rating-option">
+                            <div class="rating-circle" id="circle4" onclick="setRating(4)">4</div>
+                            <div class="rating-text">Good</div>
+                        </div>
+                        
+                        <div class="rating-option">
+                            <div class="rating-circle" id="circle5" onclick="setRating(5)">5</div>
+                            <div class="rating-text">Excellent</div>
+                        </div>
+                    </div>
+                    <div id="ratingError" style="color: red; display: none; margin-top: 5px; font-size: 0.9rem;">Please select a rating</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="experience">Tell us about your experience with this product</label>
+                    <textarea id="experience" name="experience" required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="recommend">Would you recommend this product to others?</label>
+                    <select id="recommend" name="recommend" required>
+                        <option value="">Please select</option>
+                        <option value="Definitely">Definitely</option>
+                        <option value="Probably">Probably</option>
+                        <option value="Not sure">Not sure</option>
+                        <option value="Probably not">Probably not</option>
+                        <option value="Definitely not">Definitely not</option>
+                    </select>
+                </div>
+                <button type="submit" form="skincareFeedback">Submit Feedback</button>  
+            </form>
+        </div> 
+        <div class="thank-you" id="thankYou">
+            <h2>Thank You!</h2>
+            <p>Your feedback has been submitted successfully. We appreciate your input and will use it to improve our product recommendations.</p>
+            <button onclick="window.location.href='index.html'">Return to Homepage</button>
+        </div>
+    </div>
+    
+    <script>
+        // Fix for rating system
+        function setRating(value) {
+            // Update hidden input value
+            document.getElementById('rating').value = value;
+            
+            // Reset all rating circles
+            for(let i = 1; i <= 5; i++) {
+                document.getElementById('circle' + i).classList.remove('selected');
+            }
+            
+            // Highlight selected rating
+            document.getElementById('circle' + value).classList.add('selected');
+            
+            // Hide error message if shown
+            document.getElementById('ratingError').style.display = 'none';
+        }
+        
+        function submitFeedback(event) {
+            event.preventDefault();
+            
+             // Get form values
+             const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const product = document.getElementById('product').value;
+            const usagePeriod = document.getElementById('usagePeriod').value;
+            const rating = document.getElementById('rating').value;
+            const experience = document.getElementById('experience').value;
+            const recommend = document.getElementById('recommend').value;
+            
+           // Validate rating
+           if (!rating) {
+                document.getElementById('ratingError').style.display = 'block';
+                document.getElementById('ratingError').scrollIntoView({ behavior: 'smooth' });
+                return false;
+            }
+            // Format email body
+            const emailBody = `
+Dear Glowguide Team,
+
+Please find below my product feedback:
+
+Product Details:
+---------------
+Product Name: ${product}
+Usage Period: ${usagePeriod}
+Rating: ${rating}/5 stars
+Would Recommend: ${recommend}
+
+User Experience:
+---------------
+${experience}
+
+Contact Information:
+-------------------
+Name: ${name}
+Email: ${email}
+
+Thank you for considering my feedback.
+
+Best regards,
+${name}
+            `;
+
+            // Create and encode mailto link
+            const mailtoLink = `mailto:mail4aswinsekhar@gmail.com?subject=Product Feedback: ${encodeURIComponent(product)}&body=${encodeURIComponent(emailBody)}`;
+            
+            try {
+                // Open email client
+                window.location.href = mailtoLink;
+
+                // Show thank you message
+                document.getElementById('feedbackForm').style.display = 'none';
+                document.querySelector('button[type="submit"]').style.display = 'none';
+                document.getElementById('thankYou').style.display = 'block';
+
+                // Smooth scroll to top
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (error) {
+                console.error('Error opening email client:', error);
+                alert('Unable to open email client. Please try again or contact us directly.');
+            }
+            
+            return false;
+        }
+
+         // Initialize on page load
+         window.onload = function() {
+            // Add touch-friendly events for mobile
+            const ratingCircles = document.querySelectorAll('.rating-circle');
+            ratingCircles.forEach(function(circle, index) {
+                circle.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    setRating(index + 1);
+                });
+            });
+
+            // Reset form on page load
+            document.getElementById('skincareFeedback').reset();
+            document.getElementById('rating').value = '';
+            document.querySelectorAll('.rating-circle').forEach(circle => {
+                circle.classList.remove('selected');
+            });
+        };
+</script>
+    </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+stages:
+
+  train_model_oily:
+    cmd: python src/train_model.py data/raw/oily_dry oily_dry_model.h5 Adam 0.0001
+    deps:
+      - data/raw/oily_dry
+      - src/train_model.py
+    outs:
+      - models/oily_dry_model.h5
+
+  train_model_pigmented:
+    cmd: python src/train_model.py data/raw/pigmented_skin pigmented_nonpigmented_model.h5 SGD 0.01
+    deps:
+      - data/raw/pigmented_skin
+      - src/train_model.py
+    outs:
+      - models/pigmented_nonpigmented_model.h5
+
+  train_model_sensitive:
+    cmd: python src/train_model.py data/raw/sensitive_resistant sensation_model.h5 Adam 0.001
+    deps:
+      - data/raw/sensitive_resistant
+      - src/train_model.py
+    outs:
+      - models/sensation_model.h5
+
+  train_model_wrinkles:
+    cmd: python src/train_model.py data/raw/wrinkled_smooth wrinkles_model.h5 Adam 0.001
+    deps:
+      - data/raw/wrinkled_smooth
+      - src/train_model.py
+    outs:
+      - models/wrinkles_model.h5
