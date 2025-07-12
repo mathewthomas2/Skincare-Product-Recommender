@@ -28,8 +28,3 @@ Thumbs.db
 *.tmp
 *.log
 
-# Model weights (if not tracked)
-*.h5
-!SkinTypeClassification/app/models/pigmented_nonpigmented_model.h5
-!SkinTypeClassification/app/models/oily_dry_model.h5
-!SkinTypeClassification/app/models/sensitive_resistant_model.h5
