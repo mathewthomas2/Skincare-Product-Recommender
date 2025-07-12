@@ -20,11 +20,6 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
-# Data & Models (ignore all except tracked files)
-SkinTypeClassification/data/raw/
-!SkinTypeClassification/data/raw/.gitkeep
-SkinTypeClassification/app/models/
-!SkinTypeClassification/app/models/.gitkeep
 
 # Git
 .git/
