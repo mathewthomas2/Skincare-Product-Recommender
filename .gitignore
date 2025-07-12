@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+.env
+venv/
+ENV/
+env/
+*.sqlite3
+
+# VSCode
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data & Models (ignore all except tracked files)
+SkinTypeClassification/data/raw/
+!SkinTypeClassification/data/raw/.gitkeep
+SkinTypeClassification/app/models/
+!SkinTypeClassification/app/models/.gitkeep
+
+# Git
+.git/
+
+# Temporary files
+*.tmp
+*.log
+
+# Model weights (if not tracked)
+*.h5
+!SkinTypeClassification/app/models/pigmented_nonpigmented_model.h5
+!SkinTypeClassification/app/models/oily_dry_model.h5
+!SkinTypeClassification/app/models/sensitive_resistant_model.h5
