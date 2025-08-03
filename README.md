@@ -1,7 +1,5 @@
 # GlowGuide: AI-Powered Skin Type Analyzer & Product Recommender
 
-![GlowGuide Banner](Frontend/secnd.png)
-
 ## 🌟 What is GlowGuide?
 
 **GlowGuide** is an AI-powered web application that analyzes your skin type from an uploaded image and provides personalized skincare product recommendations. Built by a team of passionate students, making it easy for anyone to find products that truly suit their skin.
