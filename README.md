@@ -42,7 +42,6 @@ cd glowguide
 
 - **Run the FastAPI server:**
   ```sh
-  cd SkinTypeClassification/app
   uvicorn app:app --reload
   ```
   The backend will be available at `http://localhost:8000`.
