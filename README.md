@@ -67,6 +67,12 @@ See [Frontend/about.html](Frontend/about.html) for the full team!
 
 ---
 
+## 📸 Image Credits
+
+Sample images used in this project are sourced from [Haut.AI](https://haut.ai/).
+
+---
+
 ## 📄 License
 
 This project is for educational purposes.
