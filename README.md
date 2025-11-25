@@ -55,11 +55,10 @@ cd glowguide
 
 ## ⚡ Important Notice
 
-**Download all three models from this link**
+**Download all three models from this link and add them in SkinTypeClassification/app/models folder.**
 ```sh
   https://drive.google.com/drive/folders/1J-0y8fZgVZcsataaGYGgO3qcSBletV7J?usp=sharing
 ```
-Add all three models in SkinTypeClassification/app/models folder.
 ---
 
 ## 👨‍💻 Contributors
