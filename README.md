@@ -55,9 +55,11 @@ cd glowguide
 
 ## ⚡ Important Notice
 
+**Download all three models from this link**
 ```sh
-  Ensure that oily_dry_model.h5, pigmented_nonpigmented_model.h5 and sensitive_resitant_model.h5 are present in SkinTypeClassification/app/models
+  https://drive.google.com/drive/folders/1J-0y8fZgVZcsataaGYGgO3qcSBletV7J?usp=sharing
 
+  Add all three models in SkinTypeClassification/app/models folder.
 ```
 ---
 
