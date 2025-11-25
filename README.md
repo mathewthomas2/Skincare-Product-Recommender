@@ -58,9 +58,8 @@ cd glowguide
 **Download all three models from this link**
 ```sh
   https://drive.google.com/drive/folders/1J-0y8fZgVZcsataaGYGgO3qcSBletV7J?usp=sharing
-
-  Add all three models in SkinTypeClassification/app/models folder.
 ```
+Add all three models in SkinTypeClassification/app/models folder.
 ---
 
 ## 👨‍💻 Contributors
