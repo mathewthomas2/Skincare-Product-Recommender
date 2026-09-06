@@ -11,9 +11,16 @@ from app.preprocess_image import preprocess_image
 
 app = FastAPI()
 
+_allowed_origins_env = os.environ.get("ALLOWED_ORIGINS")
+allowed_origins = (
+    [origin.strip() for origin in _allowed_origins_env.split(",")]
+    if _allowed_origins_env
+    else ["*"]  # open for local dev only — restrict this before deploying
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -67,6 +74,16 @@ sm_path = os.path.join(model_dir, 'sensitive_resistant_model.h5')  # Use the act
 
 os.makedirs(model_dir, exist_ok=True)
 
+def _is_git_lfs_pointer(path):
+    """Git LFS pointer files are tiny text files, not real binary models."""
+    try:
+        if os.path.getsize(path) > 1024:
+            return False
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read(200).startswith("version https://git-lfs.github.com/spec/v1")
+    except Exception:
+        return False
+
 try:
     models_to_load = [
         ("pigmentation", pm_path),
@@ -80,6 +97,12 @@ try:
             raise FileNotFoundError(f"Model file not found: {model_path}")
         if os.path.getsize(model_path) == 0:
             raise ValueError(f"Model file is empty: {model_path}")
+        if _is_git_lfs_pointer(model_path):
+            raise ValueError(
+                f"'{model_path}' is a Git LFS pointer file, not the real model. "
+                "Run `git lfs install && git lfs pull` (or download the models manually "
+                "per the README) before starting the server."
+            )
         loaded_models[model_name] = tf.keras.models.load_model(model_path)
 
     pigmentation_model = loaded_models["pigmentation"]
@@ -87,6 +110,7 @@ try:
     sensitive_model = loaded_models["sensitive"]
 
 except Exception as e:
+    print(f"[FATAL] Could not load ML models: {e}")
     raise SystemExit(1)
 
 def get_text_info():
@@ -186,7 +210,7 @@ async def analyze_skin(file: UploadFile):
                 await out_file.write(content)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Error saving file: {str(e)}")
-
+        
         await validate_image(temp_image_path)
         
         skin_percentage = calculate_skin_percentage(temp_image_path)
