@@ -1,3 +1,5 @@
+// Change this when deploying the backend somewhere other than localhost.
+const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8000';
 let currentPage = 1;
 const pages = ['uploadPage', 'questionnairePage', 'recommendationsPage'];
 let imageUploaded = false;
@@ -24,7 +26,6 @@ function forceImageRefresh(imgElement) {
 uploadArea.addEventListener('click', () => {
     fileInput.click();
 });
-
 uploadArea.addEventListener('dragover', (e) => {
     e.preventDefault();
     uploadArea.style.backgroundColor = 'rgba(135, 206, 235, 0.2)';
@@ -62,7 +63,7 @@ async function handleFiles(files) {
                 const formData = new FormData();
                 formData.append('file', file);
                 try {
-                    const response = await fetch('http://localhost:8000/analyze-skin', {
+                    const response = await fetch(`${API_BASE_URL}/analyze-skin`, {
                         method: 'POST',
                         body: formData
                     });
@@ -99,7 +100,7 @@ async function handleFiles(files) {
 
 async function checkServerStatus() {
     try {
-        const response = await fetch('http://localhost:8000/');
+        const response = await fetch(`${API_BASE_URL}/`);
         return response.ok;
     } catch {
         return false;
@@ -314,7 +315,7 @@ function loadRecommendations() {
                 price: "$15.99",
                 icon: "fas fa-soap",
                 ingredients: ["ceramides", "hyaluronic acid", "glycerin"],
-                skinTypes: ["dry","oil", "combination"],
+                skinTypes: ["dry","oily", "combination"],
                 concerns: ["dryness","aging","pigmentation","redness","acne"]
             },
             {
