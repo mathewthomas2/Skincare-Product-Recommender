@@ -7,7 +7,7 @@
 html, body {
     min-height: 100vh;
     width: 100%;
-    font-family: poppins;
+    font-family: 'Poppins', sans-serif;
     overflow-x: hidden;
 }
 
@@ -21,9 +21,8 @@ header{
 }
 .brand h1{
     text-transform: uppercase;
-    font-family: rog fonts;
     font-size: 40px;
-    font-weight: 500;
+    font-weight: 700;
     color: #3232f1;
     padding: 20px 30px 0px;
 }
@@ -222,33 +221,7 @@ main {
     transform: scale(1.1);
 }
 
-.form-group {
-    margin-bottom: 2rem;
-}
 
-.form-group label {
-    display: block;
-    margin-bottom: 1rem;
-    color: #2c3e50;
-    font-weight: 500;
-    font-size: 1.1rem;
-}
-
-.radio-group, .checkbox-group {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-}
-
-.radio-option, .checkbox-option {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 15px;
-    border-radius: 15px;
-    background: white;
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
 
 #uploadPage h2{
     font-size: 30px;
@@ -546,9 +519,7 @@ input[type="checkbox"]:checked::before {
     animation: spin 1s ease-in-out infinite;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
+
 
 .error-message {
     color: #dc3545;

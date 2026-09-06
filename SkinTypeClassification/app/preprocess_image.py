@@ -1,25 +1,29 @@
+import numpy as np
 import tensorflow as tf
 from skimage import transform
-import numpy as np
 
-def preprocess_image(image_path, img_width=224, img_height=224):
+
+def preprocess_image(image_path: str, img_width: int = 224, img_height: int = 224) -> np.ndarray:
     """
     Preprocesses an image for skin type prediction.
+
+    Args:
+        image_path (str): Path to the input image.
+        img_width  (int): Target width in pixels (default 224).
+        img_height (int): Target height in pixels (default 224).
+
+    Returns:
+        np.ndarray: Shape (1, img_height, img_width, 3), pixels normalised to [0, 1].
     """
     image = tf.keras.utils.load_img(image_path)
     input_arr = tf.keras.utils.img_to_array(image)
-    
-    print(f"Original image range: [{np.min(input_arr)}, {np.max(input_arr)}]")
-    
-    transformed_arr = transform.resize(input_arr, (img_width, img_height, 3))
-    print(f"After resize range: [{np.min(transformed_arr)}, {np.max(transformed_arr)}]")
-    
-    if np.max(transformed_arr) > 1.0:
-        transformed_arr = transformed_arr / 255.0
-        
-    normalized_arr = (transformed_arr * 2.0) - 1.0
-    print(f"Final normalized range: [{np.min(normalized_arr)}, {np.max(normalized_arr)}]")
-    
-    output_arr = np.array([normalized_arr])
-    
-    return output_arr
+
+    # Resize to the model's expected spatial dimensions
+    resized = transform.resize(input_arr, (img_height, img_width, 3))
+
+    # Normalise to [0, 1] — skimage.transform.resize already outputs float64
+    # values in [0, 1] when the source is uint8, but we guard explicitly.
+    if resized.max() > 1.0:
+        resized = resized / 255.0
+
+    return np.array([resized], dtype=np.float32)

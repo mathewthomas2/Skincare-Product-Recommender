@@ -1,13 +1,20 @@
-from fastapi import FastAPI, UploadFile, HTTPException
-from fastapi.middleware.cors import CORSMiddleware  
+import logging
+import traceback
+import os
+import json
+
+import aiofiles
 import cv2
 import numpy as np
-from pydantic import BaseModel
-import aiofiles
-import os
 import tensorflow as tf
-import json
+from fastapi import FastAPI, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
 from app.preprocess_image import preprocess_image
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 app = FastAPI()
 
@@ -26,55 +33,80 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-async def validate_image(image_path):
-    """Validate if the image contains enough skin area for processing"""
-    try:
-        img = cv2.imread(image_path)
-        if img is None:
-            raise ValueError("Could not load image. Please check the image file.")
-        
-        ycrcb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        
-        lower_skin_ycrcb = np.array([0, 130, 80], dtype=np.uint8)
-        upper_skin_ycrcb = np.array([255, 185, 140], dtype=np.uint8)
-        
-        lower_skin_hsv = np.array([0, 20, 70], dtype=np.uint8)
-        upper_skin_hsv = np.array([50, 255, 255], dtype=np.uint8)
-        
-        skin_mask_ycrcb = cv2.inRange(ycrcb, lower_skin_ycrcb, upper_skin_ycrcb)
-        skin_mask_hsv = cv2.inRange(hsv, lower_skin_hsv, upper_skin_hsv)
-        skin_mask = cv2.bitwise_or(skin_mask_ycrcb, skin_mask_hsv)
-        
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        skin_mask = cv2.erode(skin_mask, kernel, iterations=1)
-        skin_mask = cv2.dilate(skin_mask, kernel, iterations=1)
-        
-        skin_percentage = (cv2.countNonZero(skin_mask) / (img.shape[0] * img.shape[1])) * 100
-        
-        if skin_percentage > 5:
-            return True
-            
+# ---------------------------------------------------------------------------
+# Skin-mask helper — single source of truth, used by both validation and
+# percentage calculation to avoid copy-pasting the same colour ranges.
+# ---------------------------------------------------------------------------
+
+_LOWER_YCRCB = np.array([0, 130, 80], dtype=np.uint8)
+_UPPER_YCRCB = np.array([255, 185, 140], dtype=np.uint8)
+_LOWER_HSV   = np.array([0, 20, 70], dtype=np.uint8)
+_UPPER_HSV   = np.array([50, 255, 255], dtype=np.uint8)
+_MORPH_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+
+
+def _compute_skin_mask(img: np.ndarray) -> np.ndarray:
+    """Return a binary skin mask for a BGR image."""
+    ycrcb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
+    hsv   = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    mask_ycrcb = cv2.inRange(ycrcb, _LOWER_YCRCB, _UPPER_YCRCB)
+    mask_hsv   = cv2.inRange(hsv,   _LOWER_HSV,   _UPPER_HSV)
+    mask = cv2.bitwise_or(mask_ycrcb, mask_hsv)
+
+    mask = cv2.erode(mask,  _MORPH_KERNEL, iterations=1)
+    mask = cv2.dilate(mask, _MORPH_KERNEL, iterations=1)
+    return mask
+
+
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+
+async def validate_image(image_path: str) -> None:
+    """Raise ValueError if the image contains insufficient skin area."""
+    img = cv2.imread(image_path)
+    if img is None:
+        raise ValueError("Could not load image. Please check the image file.")
+
+    mask = _compute_skin_mask(img)
+    skin_pct = (cv2.countNonZero(mask) / (img.shape[0] * img.shape[1])) * 100
+
+    if skin_pct <= 5:
         raise ValueError("Please upload a photo showing enough skin area with good lighting.")
-        
-    except Exception as e:
-        raise ValueError(f"Could not process image: {str(e)}. Please ensure good lighting and clear focus.")
+
+
+def calculate_skin_percentage(image_path: str) -> float:
+    """Return the percentage of skin pixels in the image."""
+    img  = cv2.imread(image_path)
+    mask = _compute_skin_mask(img)
+    return (cv2.countNonZero(mask) / (img.shape[0] * img.shape[1])) * 100
+
+
+# ---------------------------------------------------------------------------
+# Response schema
+# ---------------------------------------------------------------------------
 
 class SkinTypeResponse(BaseModel):
     skin_type: str
     short_info: str
+    skin_percentage: float
 
-    skin_percentage: float  
 
-base_dir = os.path.dirname(os.path.abspath(__file__))
-model_dir = os.path.join(base_dir, 'models')
-pm_path = os.path.join(model_dir, 'pigmented_nonpigmented_model.h5')
-om_path = os.path.join(model_dir, 'oily_dry_model.h5')
-sm_path = os.path.join(model_dir, 'sensitive_resistant_model.h5')  # Use the actual filename
+# ---------------------------------------------------------------------------
+# Model loading
+# ---------------------------------------------------------------------------
+
+base_dir  = os.path.dirname(os.path.abspath(__file__))
+model_dir = os.path.join(base_dir, "models")
+pm_path   = os.path.join(model_dir, "pigmented_nonpigmented_model.h5")
+om_path   = os.path.join(model_dir, "oily_dry_model.h5")
+sm_path   = os.path.join(model_dir, "sensitive_resistant_model.h5")
 
 os.makedirs(model_dir, exist_ok=True)
 
-def _is_git_lfs_pointer(path):
+
+def _is_git_lfs_pointer(path: str) -> bool:
     """Git LFS pointer files are tiny text files, not real binary models."""
     try:
         if os.path.getsize(path) > 1024:
@@ -84,14 +116,15 @@ def _is_git_lfs_pointer(path):
     except Exception:
         return False
 
+
 try:
     models_to_load = [
         ("pigmentation", pm_path),
-        ("oily", om_path),
-        ("sensitive", sm_path)
+        ("oily",         om_path),
+        ("sensitive",    sm_path),
     ]
 
-    loaded_models = {}
+    loaded_models: dict = {}
     for model_name, model_path in models_to_load:
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found: {model_path}")
@@ -103,18 +136,43 @@ try:
                 "Run `git lfs install && git lfs pull` (or download the models manually "
                 "per the README) before starting the server."
             )
+        logger.info("Loading model '%s' from %s", model_name, model_path)
         loaded_models[model_name] = tf.keras.models.load_model(model_path)
 
     pigmentation_model = loaded_models["pigmentation"]
-    oily_model = loaded_models["oily"]
-    sensitive_model = loaded_models["sensitive"]
+    oily_model         = loaded_models["oily"]
+    sensitive_model    = loaded_models["sensitive"]
 
 except Exception as e:
-    print(f"[FATAL] Could not load ML models: {e}")
+    logger.critical("Could not load ML models: %s", e)
     raise SystemExit(1)
 
-def get_text_info():
-    text_info_path = os.path.join(base_dir, 'text_info.json')
+
+# Load model configuration & calibrated thresholds
+def load_model_config() -> dict:
+    cfg_path = os.path.join(model_dir, "model_config.json")
+    if os.path.exists(cfg_path):
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning("Could not read model_config.json: %s. Using default thresholds.", e)
+    return {
+        "oily_threshold": 0.3,
+        "sensitive_threshold": 0.3,
+        "pigmented_threshold": 0.2
+    }
+
+
+model_config = load_model_config()
+
+
+# ---------------------------------------------------------------------------
+# Text info
+# ---------------------------------------------------------------------------
+
+def get_text_info() -> dict:
+    text_info_path = os.path.join(base_dir, "text_info.json")
     try:
         with open(text_info_path, encoding="utf-8") as f:
             return json.load(f)
@@ -123,127 +181,59 @@ def get_text_info():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error loading text info: {str(e)}")
 
+
 text_info = get_text_info()
 
-def calculate_skin_percentage(image_path):
-    """Calculate the percentage of skin in the image"""
-    img = cv2.imread(image_path)
-    ycrcb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    
-    lower_skin_ycrcb = np.array([0, 130, 80], dtype=np.uint8)
-    upper_skin_ycrcb = np.array([255, 185, 140], dtype=np.uint8)
-    
-    lower_skin_hsv = np.array([0, 20, 70], dtype=np.uint8)
-    upper_skin_hsv = np.array([50, 255, 255], dtype=np.uint8)
-    
-    skin_mask_ycrcb = cv2.inRange(ycrcb, lower_skin_ycrcb, upper_skin_ycrcb)
-    skin_mask_hsv = cv2.inRange(hsv, lower_skin_hsv, upper_skin_hsv)
-    skin_mask = cv2.bitwise_or(skin_mask_ycrcb, skin_mask_hsv)
-    
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    skin_mask = cv2.erode(skin_mask, kernel, iterations=1)
-    skin_mask = cv2.dilate(skin_mask, kernel, iterations=1)
-    
-    return (cv2.countNonZero(skin_mask) / (img.shape[0] * img.shape[1])) * 100
 
-def skin_color_analysis(image_path):
-    """Analyze skin color to detect sensitivity traits"""
-    img = cv2.imread(image_path)
-    img = cv2.resize(img, (224, 224))
-    
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    
-    ycrcb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
-    
-    lower_skin_ycrcb = np.array([0, 130, 80], dtype=np.uint8)
-    upper_skin_ycrcb = np.array([255, 185, 140], dtype=np.uint8)
-    
-    lower_skin_hsv = np.array([0, 20, 70], dtype=np.uint8)
-    upper_skin_hsv = np.array([50, 255, 255], dtype=np.uint8)
-    
-    skin_mask_ycrcb = cv2.inRange(ycrcb, lower_skin_ycrcb, upper_skin_ycrcb)
-    skin_mask_hsv = cv2.inRange(hsv, lower_skin_hsv, upper_skin_hsv)
-    skin_mask = cv2.bitwise_or(skin_mask_ycrcb, skin_mask_hsv)
-    
-    hsv_masked = cv2.bitwise_and(hsv, hsv, mask=skin_mask)
-    
-    if cv2.countNonZero(skin_mask) > 0:
-        avg_h = np.sum(hsv_masked[:,:,0]) / cv2.countNonZero(skin_mask)
-        avg_s = np.sum(hsv_masked[:,:,1]) / cv2.countNonZero(skin_mask)
-        avg_v = np.sum(hsv_masked[:,:,2]) / cv2.countNonZero(skin_mask)
-    else:
-        avg_h, avg_s, avg_v = 0, 0, 0
-    
-    bgr = cv2.imread(image_path)
-    bgr = cv2.resize(bgr, (224, 224))
-    b, g, r = cv2.split(bgr)
-    r_masked = cv2.bitwise_and(r, r, mask=skin_mask)
-    
-    if cv2.countNonZero(skin_mask) > 0:
-        avg_r = np.sum(r_masked) / cv2.countNonZero(skin_mask)
-    else:
-        avg_r = 0
-  
-    is_sensitive = (avg_r > 150 and avg_s < 100) or (avg_h < 10)
-    
-    print(f"Skin color analysis: H={avg_h:.1f}, S={avg_s:.1f}, V={avg_v:.1f}, R={avg_r:.1f}")
-    print(f"Sensitive based on color: {is_sensitive}")
-    
-    return is_sensitive
+# ---------------------------------------------------------------------------
+# Prediction endpoint
+# ---------------------------------------------------------------------------
 
 @app.post("/analyze-skin")
 async def analyze_skin(file: UploadFile):
     """Analyzes any skin part image and predicts the skin type."""
     temp_image_path = None
     try:
-        if not file.filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+        if not file.filename.lower().endswith((".jpg", ".jpeg", ".png")):
             raise HTTPException(status_code=400, detail="Only JPG or PNG files are allowed")
 
-        temp_image_path = f'temp_image_{os.urandom(8).hex()}.jpg'
+        temp_image_path = f"temp_image_{os.urandom(8).hex()}.jpg"
 
         try:
-            async with aiofiles.open(temp_image_path, 'wb') as out_file:
+            async with aiofiles.open(temp_image_path, "wb") as out_file:
                 content = await file.read()
                 if not content:
                     raise ValueError("Empty file uploaded")
                 await out_file.write(content)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Error saving file: {str(e)}")
-        
+
         await validate_image(temp_image_path)
-        
+
         skin_percentage = calculate_skin_percentage(temp_image_path)
 
         try:
             image = preprocess_image(temp_image_path)
-            
-            is_oily = oily_model.predict(image, verbose=0)
-            is_pigmented = pigmentation_model.predict(image, verbose=0)
 
-            oily_score = float(is_oily[0][0])
+            # Run all three models
+            oily_score        = float(oily_model.predict(image, verbose=0)[0][0])
+            pigmented_score   = float(pigmentation_model.predict(image, verbose=0)[0][0])
+            sensitive_score   = float(sensitive_model.predict(image, verbose=0)[0][0])
 
-            if oily_score > 0.3:
-                skin_type = 'O'  
-            else:
-                skin_type = 'D'  
-            
-            is_sensitive_skin = skin_color_analysis(temp_image_path)
-            
-            is_pigmented_skin = float(is_pigmented[0][0]) > 0.2
+            # Classify using calibrated thresholds
+            oily_thresh      = float(model_config.get("oily_threshold", 0.3))
+            sensitive_thresh = float(model_config.get("sensitive_threshold", 0.3))
+            pigmented_thresh = float(model_config.get("pigmented_threshold", 0.2))
 
-            print("\n=== Skin Analysis Scores ===")
-            print(f"Sensitive Result: {is_sensitive_skin}")
-            print(f"Oily Score: {oily_score:.4f}")
-            print(f"Pigmented Score: {float(is_pigmented[0][0]):.4f}")
-            print(f"Is Pigmented: {is_pigmented_skin}")
-            print("==========================\n")
+            skin_type  = "O" if oily_score      > oily_thresh else "D"
+            skin_type += "S" if sensitive_score  > sensitive_thresh else "R"
+            skin_type += "P" if pigmented_score  > pigmented_thresh else "N"
+            skin_type += "T"   # Wrinkle dimension not yet modelled — always Tight
 
-            skin_type += 'S' if is_sensitive_skin else 'R'
-            skin_type += 'P' if is_pigmented_skin else 'N'
-            skin_type += 'T'
-
-            print(f"Final skin type: {skin_type}")
+            logger.info(
+                "Skin analysis — oily=%.4f (th=%.2f) sensitive=%.4f (th=%.2f) pigmented=%.4f (th=%.2f) → %s",
+                oily_score, oily_thresh, sensitive_score, sensitive_thresh, pigmented_score, pigmented_thresh, skin_type,
+            )
 
             if skin_type not in text_info:
                 raise ValueError(f"Invalid skin type classification: {skin_type}")
@@ -251,21 +241,17 @@ async def analyze_skin(file: UploadFile):
             return SkinTypeResponse(
                 skin_type=skin_type,
                 short_info=text_info[skin_type],
-                skin_percentage=round(skin_percentage, 2)
+                skin_percentage=round(skin_percentage, 2),
             )
 
         except Exception as e:
-            import traceback
-            traceback_str = traceback.format_exc()
-            print(f"Error traceback: {traceback_str}")
+            logger.error("Prediction error:\n%s", traceback.format_exc())
             raise HTTPException(status_code=500, detail=f"Error during prediction: {str(e)}")
 
-    except HTTPException as he:
-        raise he
+    except HTTPException:
+        raise
     except Exception as e:
-        import traceback
-        traceback_str = traceback.format_exc()
-        print(f"Unexpected error traceback: {traceback_str}")
+        logger.error("Unexpected error:\n%s", traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
     finally:
         if temp_image_path and os.path.exists(temp_image_path):
@@ -273,8 +259,3 @@ async def analyze_skin(file: UploadFile):
                 os.remove(temp_image_path)
             except Exception:
                 pass
-
-@app.post("/macro")
-async def predict_macro(file: UploadFile):
-    """Legacy endpoint that redirects to the new analyze-skin endpoint."""
-    return await analyze_skin(file)

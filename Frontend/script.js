@@ -3,29 +3,294 @@ const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8000';
 let currentPage = 1;
 const pages = ['uploadPage', 'questionnairePage', 'recommendationsPage'];
 let imageUploaded = false;
+let uploadInProgress = false;
 
 const uploadArea = document.getElementById('uploadArea');
 const fileInput = document.getElementById('fileInput');
 const imagePreview = document.getElementById('imagePreview');
 const imagePreviewContainer = document.getElementById('imagePreviewContainer');
-let currentImageUrl = null;
-let uploadInProgress = false;
 
-function forceImageRefresh(imgElement) {
-    if (imgElement.src && imgElement.src.startsWith('data:')) {
-        return;
-    }
-    const timestamp = new Date().getTime();
-    if (imgElement.src.indexOf('?') !== -1) {
-        imgElement.src = imgElement.src.split('?')[0] + '?' + timestamp;
-    } else {
-        imgElement.src = imgElement.src + '?' + timestamp;
-    }
-}
+// Product Database
+const productDatabase = {
+    cleanser: [
+        {
+            title: "Gentle Hydrating Cleanser",
+            brand: "CeraVe",
+            description: "Perfect for sensitive skin, this non-foaming cleanser removes impurities while maintaining skin barrier.",
+            price: "$15.99",
+            rating: 4.8,
+            icon: "fas fa-soap",
+            ingredients: ["ceramides", "hyaluronic acid", "glycerin"],
+            skinTypes: ["dry", "oily", "combination"],
+            concerns: ["dryness", "aging", "pigmentation", "redness", "acne"]
+        },
+        {
+            title: "Foaming Facial Cleanser",
+            brand: "Neutrogena",
+            description: "Removes excess oil, makeup and impurities without over-drying or irritating skin.",
+            price: "$9.99",
+            rating: 4.5,
+            icon: "fas fa-soap",
+            ingredients: ["glycerin", "sodium laureth sulfate", "cocamidopropyl betaine"],
+            skinTypes: ["oily", "combination", "normal"],
+            concerns: ["acne", "pigmentation"]
+        },
+        {
+            title: "Soothing Cleanser",
+            brand: "La Roche-Posay",
+            description: "Gentle, soap-free cleanser that respects sensitive skin while effectively removing impurities.",
+            price: "$14.99",
+            rating: 4.7,
+            icon: "fas fa-soap",
+            ingredients: ["thermal spring water", "glycerin", "niacinamide"],
+            skinTypes: ["dry", "normal"],
+            concerns: ["redness", "dryness"]
+        },
+        {
+            title: "Purifying Neem Face Wash",
+            brand: "Himalaya",
+            description: "Neem and turmeric-based cleanser that helps clear impurities and prevent acne.",
+            price: "$5.99",
+            rating: 4.3,
+            icon: "fas fa-soap",
+            ingredients: ["neem extract", "turmeric extract", "glycerin"],
+            skinTypes: ["oily", "combination"],
+            concerns: ["acne", "aging"]
+        },
+        {
+            title: "Rice Water Bright Foaming Cleanser",
+            brand: "The Face Shop",
+            description: "Rice water-infused cleanser that brightens and moisturizes while removing impurities.",
+            price: "$10.99",
+            rating: 4.6,
+            icon: "fas fa-soap",
+            ingredients: ["rice extract", "moringa oil", "soapberry extract"],
+            skinTypes: ["combination", "dry"],
+            concerns: ["pigmentation", "aging", "acne"]
+        },
+        {
+            title: "Facial Cleansing Gel",
+            brand: "Avene",
+            description: "Soap-free cleansing gel formulated for sensitive skin that cleanses without disrupting the pH balance.",
+            price: "$18.99",
+            rating: 4.7,
+            icon: "fas fa-soap",
+            ingredients: ["thermal spring water", "glutamic acid", "glycerin"],
+            skinTypes: ["combination", "oily", "dry"],
+            concerns: ["dryness", "redness"]
+        }
+    ],
+    moisturizer: [
+        {
+            title: "Daily Moisturizing Lotion",
+            brand: "CeraVe",
+            description: "Lightweight, oil-free moisturizer that helps hydrate the skin and restore its natural barrier.",
+            price: "$12.99",
+            rating: 4.8,
+            icon: "fas fa-pump-soap",
+            ingredients: ["ceramides", "hyaluronic acid", "niacinamide"],
+            skinTypes: ["normal", "combination"],
+            concerns: ["dryness", "aging"]
+        },
+        {
+            title: "Oil-Free Moisturizer",
+            brand: "Neutrogena",
+            description: "Lightweight water-based moisturizer that won't clog pores or cause breakouts.",
+            price: "$8.99",
+            rating: 4.4,
+            icon: "fas fa-pump-soap",
+            ingredients: ["glycerin", "dimethicone", "allantoin"],
+            skinTypes: ["combination", "oily", "dry"],
+            concerns: ["dryness", "redness"]
+        },
+        {
+            title: "Rich Repair Cream",
+            brand: "First Aid Beauty",
+            description: "Intensive hydration for very dry or irritated skin with colloidal oatmeal.",
+            price: "$24.00",
+            rating: 4.7,
+            icon: "fas fa-pump-soap",
+            ingredients: ["colloidal oatmeal", "shea butter", "ceramides"],
+            skinTypes: ["combination", "dry"],
+            concerns: ["pigmentation", "aging", "acne"]
+        },
+        {
+            title: "Nourishing Vitamin E Cream",
+            brand: "Himalaya",
+            description: "Vitamin E enriched moisturizer that provides 24-hour hydration and protects from environmental damage.",
+            price: "$7.99",
+            rating: 4.2,
+            icon: "fas fa-pump-soap",
+            ingredients: ["vitamin E", "wheat germ oil", "sunflower oil"],
+            skinTypes: ["combination", "dry"],
+            concerns: ["acne", "dryness"]
+        },
+        {
+            title: "Water Bank Blue Hyaluronic Cream",
+            brand: "Laneige",
+            description: "Moisture-locking cream with blue hyaluronic acid that provides long-lasting hydration.",
+            price: "$39.99",
+            rating: 4.9,
+            icon: "fas fa-pump-soap",
+            ingredients: ["blue hyaluronic acid", "green mineral water", "squalane"],
+            skinTypes: ["dry", "combination"],
+            concerns: ["dryness", "acne"]
+        },
+        {
+            title: "Cica Repair Balm",
+            brand: "Dr. Jart+",
+            description: "Concentrated repair cream with centella asiatica that soothes and strengthens skin barrier.",
+            price: "$48.00",
+            rating: 4.8,
+            icon: "fas fa-pump-soap",
+            ingredients: ["centella asiatica", "madecassoside", "panthenol"],
+            skinTypes: ["combination"],
+            concerns: ["dryness", "acne"]
+        }
+    ],
+    serum: [
+        {
+            title: "Vitamin C Brightening Serum",
+            brand: "The Ordinary",
+            description: "High-potency vitamin C serum that targets uneven skin tone and signs of aging.",
+            price: "$19.99",
+            rating: 4.6,
+            icon: "fas fa-eye-dropper",
+            ingredients: ["vitamin C", "hyaluronic acid", "ferulic acid"],
+            skinTypes: ["oily", "combination"],
+            concerns: ["dryness", "aging", "pigmentation", "acne"]
+        },
+        {
+            title: "Niacinamide & Zinc Serum",
+            brand: "The Inkey List",
+            description: "Oil-controlling serum that reduces blemishes and minimizes the appearance of pores.",
+            price: "$10.99",
+            rating: 4.5,
+            icon: "fas fa-eye-dropper",
+            ingredients: ["niacinamide", "zinc", "glycerin"],
+            skinTypes: ["dry", "combination"],
+            concerns: ["dryness", "acne"]
+        },
+        {
+            title: "Hyaluronic Acid Super Hydrator",
+            brand: "La Roche-Posay",
+            description: "Intense hydrating serum with pure hyaluronic acid for plump, dewy skin.",
+            price: "$29.99",
+            rating: 4.8,
+            icon: "fas fa-eye-dropper",
+            ingredients: ["hyaluronic acid", "glycerin", "vitamin B5"],
+            skinTypes: ["oily", "dry"],
+            concerns: ["acne", "dryness", "aging"]
+        },
+        {
+            title: "Youth Infusing Serum",
+            brand: "Himalaya",
+            description: "Anti-aging serum enriched with herbs and antioxidants that reduces fine lines and improves elasticity.",
+            price: "$13.99",
+            rating: 4.3,
+            icon: "fas fa-eye-dropper",
+            ingredients: ["edelweiss extract", "woodfordia extract", "cipadessa baccifera"],
+            skinTypes: ["combination", "dry"],
+            concerns: ["pigmentation", "aging", "acne"]
+        },
+        {
+            title: "Buffet Peptide Serum",
+            brand: "The Ordinary",
+            description: "Multi-technology peptide serum targeting multiple signs of aging at once.",
+            price: "$14.80",
+            rating: 4.7,
+            icon: "fas fa-eye-dropper",
+            ingredients: ["matrixyl 3000", "syn-ake", "hyaluronic acid"],
+            skinTypes: ["combination", "dry"],
+            concerns: ["pigmentation", "aging", "acne"]
+        },
+        {
+            title: "Cica Clear Serum",
+            brand: "Cosrx",
+            description: "Centella-infused serum that calms irritation and reduces redness while promoting healing.",
+            price: "$25.00",
+            rating: 4.8,
+            icon: "fas fa-eye-dropper",
+            ingredients: ["centella asiatica", "niacinamide", "tea tree oil"],
+            skinTypes: ["combination", "oily", "dry"],
+            concerns: ["dryness", "redness"]
+        }
+    ],
+    sunscreen: [
+        {
+            title: "Invisible Fluid SPF 50+",
+            brand: "La Roche-Posay",
+            description: "Ultra-light, invisible fluid with high protection against UVA/UVB rays.",
+            price: "$29.99",
+            rating: 4.9,
+            icon: "fas fa-sun",
+            ingredients: ["avobenzone", "homosalate", "octocrylene"],
+            skinTypes: ["combination", "dry"],
+            concerns: ["pigmentation", "aging", "acne"]
+        },
+        {
+            title: "Clear Face Oil-Free Sunscreen",
+            brand: "Neutrogena",
+            description: "Oil-free, non-comedogenic sunscreen that won't cause breakouts.",
+            price: "$12.99",
+            rating: 4.5,
+            icon: "fas fa-sun",
+            ingredients: ["avobenzone", "octisalate", "octocrylene"],
+            skinTypes: ["oily", "combination"],
+            concerns: ["acne", "dryness", "redness"]
+        },
+        {
+            title: "Mineral Sensitive Skin Sunscreen",
+            brand: "CeraVe",
+            description: "Gentle physical sunscreen with zinc oxide for sensitive skin types.",
+            price: "$15.99",
+            rating: 4.6,
+            icon: "fas fa-sun",
+            ingredients: ["zinc oxide", "titanium dioxide", "ceramides"],
+            skinTypes: ["dry", "oily"],
+            concerns: ["aging", "redness"]
+        },
+        {
+            title: "Protective Sunscreen Lotion SPF 30",
+            brand: "Himalaya",
+            description: "Lightweight, non-greasy sunscreen with natural ingredients that provides broad-spectrum protection.",
+            price: "$8.99",
+            rating: 4.2,
+            icon: "fas fa-sun",
+            ingredients: ["aloe vera", "cinnabloc", "grape seed extract"],
+            skinTypes: ["all", "normal", "combination"],
+            concerns: ["sun protection", "tanning", "photo-aging"]
+        },
+        {
+            title: "Unseen Sunscreen SPF 40",
+            brand: "Supergoop!",
+            description: "Totally invisible, weightless, scentless formula that provides broad spectrum protection.",
+            price: "$36.00",
+            rating: 4.8,
+            icon: "fas fa-sun",
+            ingredients: ["avobenzone", "frankincense", "red algae"],
+            skinTypes: ["all", "normal", "combination", "oily"],
+            concerns: ["sun protection", "blue light protection", "makeup priming"]
+        },
+        {
+            title: "UV Aqua Rich Watery Essence SPF 50+",
+            brand: "Biore",
+            description: "Ultra-lightweight, water-based sunscreen that feels like nothing on the skin.",
+            price: "$15.00",
+            rating: 4.8,
+            icon: "fas fa-sun",
+            ingredients: ["hyaluronic acid", "royal jelly extract", "citrus mix"],
+            skinTypes: ["all", "normal", "combination", "oily"],
+            concerns: ["sun protection", "pigmentation", "acne"]
+        }
+    ]
+};
 
+// Event Listeners for Upload
 uploadArea.addEventListener('click', () => {
     fileInput.click();
 });
+
 uploadArea.addEventListener('dragover', (e) => {
     e.preventDefault();
     uploadArea.style.backgroundColor = 'rgba(135, 206, 235, 0.2)';
@@ -60,6 +325,7 @@ async function handleFiles(files) {
                     imagePreviewContainer.style.display = 'block';
                 };
                 reader.readAsDataURL(file);
+
                 const formData = new FormData();
                 formData.append('file', file);
                 try {
@@ -98,15 +364,6 @@ async function handleFiles(files) {
     }
 }
 
-async function checkServerStatus() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/`);
-        return response.ok;
-    } catch {
-        return false;
-    }
-}
-
 function getSkinTypeLabel(type) {
     switch(type) {
         case 'D':
@@ -121,7 +378,6 @@ function getSkinTypeLabel(type) {
 }
 
 function handleSkinTypeResponse(result) {
-    console.log("Handling skin type response:", result);
     try {
         const skinType = result.skin_type; 
         if (!skinType || skinType.length < 2) {
@@ -173,30 +429,24 @@ function handleSkinTypeResponse(result) {
     }
 }
 
+// Single clean event delegation for radio/checkbox option labels
 document.querySelectorAll('.radio-option, .checkbox-option').forEach(option => {
     option.addEventListener('click', function(e) {
-        if (e.target !== this.querySelector('input')) {
-            const input = this.querySelector('input');
+        const input = this.querySelector('input');
+        if (e.target !== input) {
             if (input.type === 'radio') {
                 input.checked = true;
+                const changeEvent = new Event('change', { bubbles: true });
+                input.dispatchEvent(changeEvent);
             } else if (input.type === 'checkbox') {
                 input.checked = !input.checked;
+                const changeEvent = new Event('change', { bubbles: true });
+                input.dispatchEvent(changeEvent);
             }
         }
-    });
-});
-
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.checkbox-option').forEach(option => {
-        option.addEventListener('click', function(e) {
-            if (e.target !== this.querySelector('input')) {
-                const input = this.querySelector('input');
-                input.checked = !input.checked;
-                const event = new Event('change', { bubbles: true ,cancelable: true });
-                input.dispatchEvent(event);
-                 this.classList.toggle('selected', input.checked);
-            }
-        });
+        if (input.type === 'checkbox') {
+            this.classList.toggle('selected', input.checked);
+        }
     });
 });
 
@@ -306,257 +556,8 @@ function loadRecommendations() {
     const allergiesInput = document.getElementById('allergiesInput').value;
     const concernsSelected = Array.from(document.querySelectorAll('input[name="concerns"]:checked')).map(el => el.value);
     const productType = document.querySelector('input[name="productType"]:checked').value;
-    const productDatabase = {
-        cleanser: [
-            {
-                title: "Gentle Hydrating Cleanser",
-                brand: "CeraVe",
-                description: "Perfect for sensitive skin, this non-foaming cleanser removes impurities while maintaining skin barrier.",
-                price: "$15.99",
-                icon: "fas fa-soap",
-                ingredients: ["ceramides", "hyaluronic acid", "glycerin"],
-                skinTypes: ["dry","oily", "combination"],
-                concerns: ["dryness","aging","pigmentation","redness","acne"]
-            },
-            {
-                title: "Foaming Facial Cleanser",
-                brand: "Neutrogena",
-                description: "Removes excess oil, makeup and impurities without over-drying or irritating skin.",
-                price: "$9.99",
-                icon: "fas fa-soap",
-                ingredients: ["glycerin", "sodium laureth sulfate", "cocamidopropyl betaine"],
-                skinTypes: ["oily", "combination", "normal"],
-                concerns: ["acne", "pigmentation"]
-            },
-            {
-                title: "Soothing Cleanser",
-                brand: "La Roche-Posay",
-                description: "Gentle, soap-free cleanser that respects sensitive skin while effectively removing impurities.",
-                price: "$14.99",
-                icon: "fas fa-soap",
-                ingredients: ["thermal spring water", "glycerin", "niacinamide"],
-                skinTypes: ["dry", "normal"],
-                concerns: ["redness", "dryness"]
-            },
-            {
-                title: "Purifying Neem Face Wash",
-                brand: "Himalaya",
-                description: "Neem and turmeric-based cleanser that helps clear impurities and prevent acne.",
-                price: "$5.99",
-                icon: "fas fa-soap",
-                ingredients: ["neem extract", "turmeric extract", "glycerin"],
-                skinTypes: ["oily", "combination"],
-                concerns: ["acne", "aging"]
-            },
-            {
-                title: "Rice Water Bright Foaming Cleanser",
-                brand: "The Face Shop",
-                description: "Rice water-infused cleanser that brightens and moisturizes while removing impurities.",
-                price: "$10.99",
-                icon: "fas fa-soap",
-                ingredients: ["rice extract", "moringa oil", "soapberry extract"],
-                skinTypes: [ "combination", "dry"],
-                concerns: ["pigmentation", "aging", "acne"]
-            },
-            {
-                title: "Facial Cleansing Gel",
-                brand: "Avene",
-                description: "Soap-free cleansing gel formulated for sensitive skin that cleanses without disrupting the pH balance.",
-                price: "$18.99",
-                icon: "fas fa-soap",
-                ingredients: ["thermal spring water", "glutamic acid", "glycerin"],
-                skinTypes: ["combination", "oily", "dry"],
-                concerns: ["dryness", "redness"]
-            }
-        ],
-        moisturizer: [
-            {
-                title: "Daily Moisturizing Lotion",
-                brand: "CeraVe",
-                description: "Lightweight, oil-free moisturizer that helps hydrate the skin and restore its natural barrier.",
-                price: "$12.99",
-                icon: "fas fa-pump-soap",
-                ingredients: ["ceramides", "hyaluronic acid", "niacinamide"],
-                skinTypes: ["normal",  "combination"],
-                concerns: ["dryness", "aging"]
-            },
-            {
-                title: "Oil-Free Moisturizer",
-                brand: "Neutrogena",
-                description: "Lightweight water-based moisturizer that won't clog pores or cause breakouts.",
-                price: "$8.99",
-                icon: "fas fa-pump-soap",
-                ingredients: ["glycerin", "dimethicone", "allantoin"],
-                skinTypes: ["combination", "oily", "dry"],
-                concerns: ["dryness", "redness"]
-            },
-            {
-                title: "Rich Repair Cream",
-                brand: "First Aid Beauty",
-                description: "Intensive hydration for very dry or irritated skin with colloidal oatmeal.",
-                price: "$24.00",
-                icon: "fas fa-pump-soap",
-                ingredients: ["colloidal oatmeal", "shea butter", "ceramides"],
-                skinTypes: [ "combination", "dry"],
-                concerns: ["pigmentation", "aging", "acne"]
-            },
-            {
-                title: "Nourishing Vitamin E Cream",
-                brand: "Himalaya",
-                description: "Vitamin E enriched moisturizer that provides 24-hour hydration and protects from environmental damage.",
-                price: "$7.99",
-                icon: "fas fa-pump-soap",
-                ingredients: ["vitamin E", "wheat germ oil", "sunflower oil"],
-                skinTypes: [ "combination", "dry"],
-                concerns: ["acne", "dryness" ]
-            },
-            {
-                title: "Water Bank Blue Hyaluronic Cream",
-                brand: "Laneige",
-                description: "Moisture-locking cream with blue hyaluronic acid that provides long-lasting hydration.",
-                price: "$39.99",
-                icon: "fas fa-pump-soap",
-                ingredients: ["blue hyaluronic acid", "green mineral water", "squalane"],
-                skinTypes: ["dry", "combination"],
-                concerns: ["dryness", "acne"]
-            },
-            {
-                title: "Cica Repair Balm",
-                brand: "Dr. Jart+",
-                description: "Concentrated repair cream with centella asiatica that soothes and strengthens skin barrier.",
-                price: "$48.00",
-                icon: "fas fa-pump-soap",
-                ingredients: ["centella asiatica", "madecassoside", "panthenol"],
-                skinTypes: ["combination"],
-                concerns: ["dryness", "acne"]
-            }
-        ],
-        serum: [
-            {
-                title: "Vitamin C Brightening Serum",
-                brand: "The Ordinary",
-                description: "High-potency vitamin C serum that targets uneven skin tone and signs of aging.",
-                price: "$19.99",
-                icon: "fas fa-eye-dropper",
-                ingredients: ["vitamin C", "hyaluronic acid", "ferulic acid"],
-                skinTypes: ["oily", "combination"],
-                concerns: ["dryness", "aging","pigmentation","acne"]
-            },
-            {
-                title: "Niacinamide & Zinc Serum",
-                brand: "The Inkey List",
-                description: "Oil-controlling serum that reduces blemishes and minimizes the appearance of pores.",
-                price: "$10.99",
-                icon: "fas fa-eye-dropper",
-                ingredients: ["niacinamide", "zinc", "glycerin"],
-                skinTypes: ["dry", "combination"],
-                concerns: ["dryness", "acne"]
-            },
-            {
-                title: "Hyaluronic Acid Super Hydrator",
-                brand: "La Roche-Posay",
-                description: "Intense hydrating serum with pure hyaluronic acid for plump, dewy skin.",
-                price: "$29.99",
-                icon: "fas fa-eye-dropper",
-                ingredients: ["hyaluronic acid", "glycerin", "vitamin B5"],
-                skinTypes: ["oily", "dry"],
-                concerns: ["acne", "dryness", "aging"]
-            },
-            {
-                title: "Youth Infusing Serum",
-                brand: "Himalaya",
-                description: "Anti-aging serum enriched with herbs and antioxidants that reduces fine lines and improves elasticity.",
-                price: "$13.99",
-                icon: "fas fa-eye-dropper",
-                ingredients: ["edelweiss extract", "woodfordia extract", "cipadessa baccifera"],
-                skinTypes: [ "combination", "dry"],
-                concerns: ["pigmentation", "aging", "acne"]
-            },
-            {
-                title: "Buffet Peptide Serum",
-                brand: "The Ordinary",
-                description: "Multi-technology peptide serum targeting multiple signs of aging at once.",
-                price: "$14.80",
-                icon: "fas fa-eye-dropper",
-                ingredients: ["matrixyl 3000", "syn-ake", "hyaluronic acid"],
-                skinTypes: [ "combination", "dry"],
-                concerns: ["pigmentation", "aging", "acne"]
-            },
-            {
-                title: "Cica Clear Serum",
-                brand: "Cosrx",
-                description: "Centella-infused serum that calms irritation and reduces redness while promoting healing.",
-                price: "$25.00",
-                icon: "fas fa-eye-dropper",
-                ingredients: ["centella asiatica", "niacinamide", "tea tree oil"],
-                skinTypes: ["combination", "oily", "dry"],
-                concerns: ["dryness", "redness"]
-            }
-        ],
-        sunscreen: [
-            {
-                title: "Invisible Fluid SPF 50+",
-                brand: "La Roche-Posay",
-                description: "Ultra-light, invisible fluid with high protection against UVA/UVB rays.",
-                price: "$29.99",
-                icon: "fas fa-sun",
-                ingredients: ["avobenzone", "homosalate", "octocrylene"],
-                skinTypes: [ "combination", "dry"],
-                concerns: ["pigmentation", "aging", "acne"]
-            },
-            {
-                title: "Clear Face Oil-Free Sunscreen",
-                brand: "Neutrogena",
-                description: "Oil-free, non-comedogenic sunscreen that won't cause breakouts.",
-                price: "$12.99",
-                icon: "fas fa-sun",
-                ingredients: ["avobenzone", "octisalate", "octocrylene"],
-                skinTypes: ["oily", "combination", "oily"],
-                concerns: ["acne", "dryness", "redness"]
-            },
-            {
-                title: "Mineral Sensitive Skin Sunscreen",
-                brand: "CeraVe",
-                description: "Gentle physical sunscreen with zinc oxide for sensitive skin types.",
-                price: "$15.99",
-                icon: "fas fa-sun",
-                ingredients: ["zinc oxide", "titanium dioxide", "ceramides"],
-                skinTypes: ["dry", "oily"],
-                concerns: ["aging", "redness"]
-            },
-            {
-                title: "Protective Sunscreen Lotion SPF 30",
-                brand: "Himalaya",
-                description: "Lightweight, non-greasy sunscreen with natural ingredients that provides broad-spectrum protection.",
-                price: "$8.99",
-                icon: "fas fa-sun",
-                ingredients: ["aloe vera", "cinnabloc", "grape seed extract"],
-                skinTypes: ["all", "normal", "combination"],
-                concerns: ["sun protection", "tanning", "photo-aging"]
-            },
-            {
-                title: "Unseen Sunscreen SPF 40",
-                brand: "Supergoop!",
-                description: "Totally invisible, weightless, scentless formula that provides broad spectrum protection.",
-                price: "$36.00",
-                icon: "fas fa-sun",
-                ingredients: ["avobenzone", "frankincense", "red algae"],
-                skinTypes: ["all", "normal", "combination", "oily"],
-                concerns: ["sun protection", "blue light protection", "makeup priming"]
-            },
-            {
-                title: "UV Aqua Rich Watery Essence SPF 50+",
-                brand: "Biore",
-                description: "Ultra-lightweight, water-based sunscreen that feels like nothing on the skin.",
-                price: "$15.00",
-                icon: "fas fa-sun",
-                ingredients: ["hyaluronic acid", "royal jelly extract", "citrus mix"],
-                skinTypes: ["all", "normal", "combination", "oily"],
-                concerns: ["sun protection", "pigmenation", "acne"]
-            }
-        ]
-    };
-    const filteredProducts = productDatabase[productType].filter(product => {
+
+    const filteredProducts = (productDatabase[productType] || []).filter(product => {
         const suitsSkinType = product.skinTypes.includes(skinType) || product.skinTypes.includes("all");
         const addressesConcerns = concernsSelected.some(concern => 
             product.concerns.includes(concern)
@@ -589,13 +590,13 @@ function displayRecommendations(products, productType) {
         return;
     }
     products.sort((a, b) => {
-        const ratingA = parseFloat(a.rating);
-        const ratingB = parseFloat(b.rating);
+        const ratingA = parseFloat(a.rating) || 0;
+        const ratingB = parseFloat(b.rating) || 0;
         return ratingB - ratingA;
     });
     let productsHTML = '';
     products.forEach(product => {
-        const ratingValue = parseFloat(product.rating);
+        const ratingValue = parseFloat(product.rating) || 0;
         const fullStars = Math.floor(ratingValue);
         const hasHalfStar = ratingValue % 1 >= 0.5;
         let starsHTML = '';
@@ -621,6 +622,10 @@ function displayRecommendations(products, productType) {
                     <h4>${product.brand}</h4>
                     <div class="product-meta">
                         <span class="product-price">${product.price}</span>
+                        <div class="product-rating">
+                            ${starsHTML}
+                            <span>(${ratingValue.toFixed(1)})</span>
+                        </div>
                     </div>
                     <div class="product-ingredients">
                         <p>Key ingredients:</p>
@@ -649,33 +654,24 @@ function displayRecommendations(products, productType) {
 
 function showLoadingState() {
     const loadingIndicator = document.getElementById('loadingIndicator');
-    loadingIndicator.style.display = 'block';
-    document.querySelector('.button.secondary').disabled = true;
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'block';
+    }
+    const secBtn = document.querySelector('.button.secondary');
+    if (secBtn) {
+        secBtn.disabled = true;
+    }
 }
 
 function hideLoadingState() {
     const loadingIndicator = document.getElementById('loadingIndicator');
-    loadingIndicator.style.display = 'none';
-    document.querySelector('.button.secondary').disabled = false;
-}
-
-function validateImage(file) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = function() {
-            if (this.width < 200 || this.height < 200) {
-                reject('Image resolution too low');
-            }
-            resolve(true);
-        };
-        img.onerror = function() {
-            reject('Invalid image file');
-        };
-        img.src = URL.createObjectURL(file);
-    });
-}
-
-function cleanup() {
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'none';
+    }
+    const secBtn = document.querySelector('.button.secondary');
+    if (secBtn) {
+        secBtn.disabled = false;
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

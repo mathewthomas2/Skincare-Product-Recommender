@@ -18,12 +18,9 @@ def preprocess_image(image_path, img_width=224, img_height=224):
     image = tf.keras.utils.load_img(image_path)
     input_arr = tf.keras.utils.img_to_array(image)
 
-    # Resize the image
+    # Resize the image (transform.resize returns float in [0.0, 1.0])
     transformed_arr = transform.resize(input_arr, (img_width, img_height, 3))
-
-    # Normalize the image
-    normalized_arr = (transformed_arr.astype(float) - 128) / 128
-    output_arr = np.array([normalized_arr])
+    output_arr = np.array([transformed_arr], dtype=np.float32)
     return output_arr
 
 

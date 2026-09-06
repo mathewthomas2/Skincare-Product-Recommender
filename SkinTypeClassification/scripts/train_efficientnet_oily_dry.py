@@ -1,33 +1,26 @@
 """
-retrain_oily_dry.py — High-Performance Transfer Learning for Oily vs Dry Skin Classification.
+train_efficientnet_oily_dry.py — EfficientNetB0 Transfer Learning with Squeeze-and-Excitation Attention.
 
-Features:
-- MobileNetV2 with 2-Phase Training (Head Warmup -> Unfrozen Fine-Tuning)
-- Robust data augmentation (flips, rotations, brightness, contrast)
-- Automatic class-weight balancing
-- Dynamic validation-based threshold optimization (F1/Accuracy)
-- Evaluation on test split with confusion matrix & accuracy report
-- Saves optimal threshold to model_config.json
+Why EfficientNetB0:
+- Squeeze-and-Excitation (SE) blocks explicitly recalibrate channel features, capturing subtle specular highlights, pore texture, and skin sheen.
+- Built-in preprocessing handles image scaling properly.
+- Significantly higher representational capacity for fine skin texture classification.
 """
 
-import sys
 import os
+import sys
 import json
 import numpy as np
 import tensorflow as tf
-from pathlib import Path
 
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 16
-PHASE_1_EPOCHS = 15
+PHASE_1_EPOCHS = 12
 PHASE_2_EPOCHS = 15
 
 
 def load_dataset(root_dir, split, augment=False):
     split_dir = os.path.join(root_dir, split)
-    if not os.path.exists(split_dir):
-        raise FileNotFoundError(f"Directory not found: {split_dir}")
-
     ds = tf.keras.utils.image_dataset_from_directory(
         split_dir,
         labels="inferred",
@@ -42,11 +35,9 @@ def load_dataset(root_dir, split, augment=False):
     dry_idx = class_names.index("dry")
     oily_idx = class_names.index("oily")
 
-    # Filter out normal or any other classes
     ds = ds.unbatch()
     ds = ds.filter(lambda x, y: tf.reduce_any(tf.equal(y, [dry_idx, oily_idx])))
 
-    # Remap to binary: 0.0 = Dry, 1.0 = Oily
     def remap_label(x, y):
         new_label = tf.cast(tf.equal(y, oily_idx), tf.float32)
         return x, new_label
@@ -57,17 +48,15 @@ def load_dataset(root_dir, split, augment=False):
     if augment:
         augmenter = tf.keras.Sequential([
             tf.keras.layers.RandomFlip("horizontal"),
-            tf.keras.layers.RandomRotation(0.1),
-            tf.keras.layers.RandomZoom(0.1),
-            tf.keras.layers.RandomBrightness(0.2),
-            tf.keras.layers.RandomContrast(0.2),
+            tf.keras.layers.RandomRotation(0.15),
+            tf.keras.layers.RandomZoom(0.15),
+            tf.keras.layers.RandomBrightness(0.25),
+            tf.keras.layers.RandomContrast(0.25),
         ], name="data_augmentation")
         ds = ds.map(lambda x, y: (augmenter(x, training=True), y), num_parallel_calls=tf.data.AUTOTUNE)
 
-    # Rescale to [0, 1] matching app.preprocess_image
-    normalization_layer = tf.keras.layers.Rescaling(1.0 / 255)
-    ds = ds.map(lambda x, y: (normalization_layer(x), y), num_parallel_calls=tf.data.AUTOTUNE)
-
+    # EfficientNet expects [0, 255] float inputs
+    ds = ds.map(lambda x, y: (tf.keras.applications.efficientnet.preprocess_input(x), y), num_parallel_calls=tf.data.AUTOTUNE)
     return ds.prefetch(tf.data.AUTOTUNE)
 
 
@@ -77,17 +66,15 @@ def compute_class_weights(root_dir):
     oily_count = len([f for f in os.listdir(os.path.join(train_dir, "oily")) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
     total = dry_count + oily_count
 
-    # 0 = dry, 1 = oily
     weight_dry = total / (2.0 * dry_count)
     weight_oily = total / (2.0 * oily_count)
     class_weights = {0: float(weight_dry), 1: float(weight_oily)}
-    print(f"Class counts — Dry: {dry_count}, Oily: {oily_count}")
-    print(f"Computed Class Weights: {class_weights}")
+    print(f"Class Weights — Dry (0): {weight_dry:.3f}, Oily (1): {weight_oily:.3f}")
     return class_weights
 
 
 def build_model():
-    base = tf.keras.applications.MobileNetV2(
+    base = tf.keras.applications.EfficientNetB0(
         input_shape=IMG_SIZE + (3,),
         include_top=False,
         weights="imagenet"
@@ -98,13 +85,15 @@ def build_model():
     x = base(inputs, training=False)
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dense(128, activation="relu")(x)
-    x = tf.keras.layers.Dropout(0.4)(x)
+    x = tf.keras.layers.Dense(256, activation="relu")(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Dense(64, activation="relu")(x)
+    x = tf.keras.layers.Dropout(0.2)(x)
     outputs = tf.keras.layers.Dense(1, activation="sigmoid")(x)
 
     model = tf.keras.Model(inputs, outputs)
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4),
         loss="binary_crossentropy",
         metrics=["accuracy", tf.keras.metrics.AUC(name="auc")],
     )
@@ -112,10 +101,8 @@ def build_model():
 
 
 def find_optimal_threshold(model, val_ds):
-    print("\n--- Computing Optimal Decision Threshold on Validation Set ---")
     y_true = []
     y_pred = []
-
     for images, labels in val_ds:
         preds = model.predict(images, verbose=0)
         y_true.extend(labels.numpy().flatten())
@@ -125,38 +112,25 @@ def find_optimal_threshold(model, val_ds):
     y_pred = np.array(y_pred)
 
     best_thresh = 0.5
-    best_acc = 0.0
-    best_f1 = 0.0
+    best_balanced_acc = 0.0
 
-    thresholds = np.linspace(0.1, 0.9, 81)
-    for t in thresholds:
+    for t in np.linspace(0.1, 0.9, 81):
         preds_binary = (y_pred >= t).astype(int)
-        acc = np.mean(preds_binary == y_true)
-        
-        tp = np.sum((preds_binary == 1) & (y_true == 1))
-        fp = np.sum((preds_binary == 1) & (y_true == 0))
-        fn = np.sum((preds_binary == 0) & (y_true == 1))
-        
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-        f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        acc_dry = np.mean(preds_binary[y_true == 0] == 0) if np.sum(y_true == 0) > 0 else 0
+        acc_oily = np.mean(preds_binary[y_true == 1] == 1) if np.sum(y_true == 1) > 0 else 0
+        balanced_acc = (acc_dry + acc_oily) / 2.0
 
-        # Maximize balanced accuracy & F1
-        balanced_metric = (acc + f1) / 2.0
-        if balanced_metric > (best_acc + best_f1) / 2.0:
-            best_acc = acc
-            best_f1 = f1
+        if balanced_acc > best_balanced_acc:
+            best_balanced_acc = balanced_acc
             best_thresh = t
 
-    print(f"Optimal Threshold: {best_thresh:.3f} (Val Accuracy: {best_acc*100:.2f}%, Val F1: {best_f1:.4f})")
+    print(f"Optimal Threshold: {best_thresh:.3f} (Val Balanced Accuracy: {best_balanced_acc*100:.2f}%)")
     return float(best_thresh)
 
 
 def evaluate_test_set(model, test_ds, threshold):
-    print("\n--- Evaluating on Independent Test Set ---")
     y_true = []
     y_pred = []
-
     for images, labels in test_ds:
         preds = model.predict(images, verbose=0)
         y_true.extend(labels.numpy().flatten())
@@ -169,34 +143,37 @@ def evaluate_test_set(model, test_ds, threshold):
     acc = np.mean(preds_binary == y_true)
     dry_acc = np.mean(preds_binary[y_true == 0] == 0)
     oily_acc = np.mean(preds_binary[y_true == 1] == 1)
+    dry_correct = int(np.sum(preds_binary[y_true == 0] == 0))
+    dry_total = int(np.sum(y_true == 0))
+    oily_correct = int(np.sum(preds_binary[y_true == 1] == 1))
+    oily_total = int(np.sum(y_true == 1))
+    total_correct = dry_correct + oily_correct
+    total_samples = len(y_true)
 
-    print(f"Overall Test Accuracy: {acc*100:.2f}%")
-    print(f"Dry Accuracy (Class 0): {dry_acc*100:.2f}% ({np.sum(preds_binary[y_true == 0] == 0)}/{np.sum(y_true == 0)})")
-    print(f"Oily Accuracy (Class 1): {oily_acc*100:.2f}% ({np.sum(preds_binary[y_true == 1] == 1)}/{np.sum(y_true == 1)})")
+    print(f"\n================ TEST SET EVALUATION ================")
+    print(f"Overall Accuracy: {acc*100:.2f}% ({total_correct}/{total_samples})")
+    print(f"Dry Skin Accuracy: {dry_acc*100:.2f}% ({dry_correct}/{dry_total})")
+    print(f"Oily Skin Accuracy: {oily_acc*100:.2f}% ({oily_correct}/{oily_total})")
+    print(f"======================================================")
     return acc, dry_acc, oily_acc
 
 
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: python retrain_oily_dry.py <dataset_root> <output_model_path>")
-        sys.exit(1)
+    dataset_root = "archive/Oily-Dry-Skin-Types"
+    output_path = "app/models/oily_dry_model.h5"
+    config_path = "app/models/model_config.json"
 
-    dataset_root = sys.argv[1]
-    output_path = sys.argv[2]
-    config_path = os.path.join(os.path.dirname(output_path), "model_config.json")
-
-    print(f"Loading datasets from '{dataset_root}'...")
+    print("Loading datasets with EfficientNet preprocessing...")
     train_ds = load_dataset(dataset_root, "train", augment=True)
     val_ds = load_dataset(dataset_root, "valid", augment=False)
     test_ds = load_dataset(dataset_root, "test", augment=False)
 
     class_weights = compute_class_weights(dataset_root)
 
-    print("\nBuilding MobileNetV2 Transfer Learning Model...")
+    print("\nBuilding EfficientNetB0 Model...")
     model, base = build_model()
-    model.summary()
 
-    callbacks_phase1 = [
+    callbacks = [
         tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True),
         tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=2, min_lr=1e-6, verbose=1),
     ]
@@ -207,23 +184,22 @@ def main():
         validation_data=val_ds,
         epochs=PHASE_1_EPOCHS,
         class_weight=class_weights,
-        callbacks=callbacks_phase1,
+        callbacks=callbacks,
     )
 
-    print(f"\n=== Phase 2: Fine-Tuning Top Convolutional Layers ({PHASE_2_EPOCHS} epochs) ===")
+    print(f"\n=== Phase 2: Fine-Tuning EfficientNetB0 Layers ({PHASE_2_EPOCHS} epochs) ===")
     base.trainable = True
-    # Freeze all except the last 40 layers
-    for layer in base.layers[:-40]:
+    for layer in base.layers[:-50]:
         layer.trainable = False
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=2e-5),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=3e-5),
         loss="binary_crossentropy",
         metrics=["accuracy", tf.keras.metrics.AUC(name="auc")],
     )
 
-    callbacks_phase2 = [
-        tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True),
+    callbacks_p2 = [
+        tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=6, restore_best_weights=True),
         tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=2, min_lr=1e-7, verbose=1),
     ]
 
@@ -232,31 +208,31 @@ def main():
         validation_data=val_ds,
         epochs=PHASE_2_EPOCHS,
         class_weight=class_weights,
-        callbacks=callbacks_phase2,
+        callbacks=callbacks_p2,
     )
 
-    # Find optimal threshold on validation set
+    # Compute optimal threshold
     optimal_threshold = find_optimal_threshold(model, val_ds)
 
     # Evaluate on test set
     test_acc, dry_acc, oily_acc = evaluate_test_set(model, test_ds, optimal_threshold)
 
     # Save final model
-    print(f"\nSaving retrained model to '{output_path}'...")
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    print(f"\nSaving model to '{output_path}'...")
     model.save(output_path)
 
-    # Save model config
     config = {
+        "model_architecture": "EfficientNetB0",
         "oily_threshold": optimal_threshold,
         "test_accuracy": round(float(test_acc), 4),
         "dry_accuracy": round(float(dry_acc), 4),
         "oily_accuracy": round(float(oily_acc), 4),
+        "sensitive_threshold": 0.3,
+        "pigmented_threshold": 0.2
     }
     with open(config_path, "w") as f:
         json.dump(config, f, indent=4)
-    print(f"Saved configuration to '{config_path}': {config}")
-    print("\nTraining completed successfully!")
+    print(f"Saved config: {config}")
 
 
 if __name__ == "__main__":

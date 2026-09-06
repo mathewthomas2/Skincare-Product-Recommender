@@ -1,0 +1,9 @@
+{
+    "model_architecture": "EfficientNetB0",
+    "oily_threshold": 0.67,
+    "test_accuracy": 0.5733,
+    "dry_accuracy": 0.8857,
+    "oily_accuracy": 0.3,
+    "sensitive_threshold": 0.3,
+    "pigmented_threshold": 0.2
+}
