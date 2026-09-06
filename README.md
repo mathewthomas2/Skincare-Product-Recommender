@@ -27,22 +27,34 @@ cd glowguide
 
 ### 2. **Backend Setup (Python, FastAPI)**
 
-- **Create a virtual environment:**
   ```sh
   cd SkinTypeClassification
   python -m venv venv
+  # Windows:
   venv\Scripts\activate
+  # macOS/Linux:
+  source venv/bin/activate
+  ```
+  Use Python 3.10 or 3.11 — TensorFlow 2.13 does not support Python 3.12+.
   ```
 
-- **Install dependencies:**
+
   ```sh
   pip install -r requirements.txt
-  uvicorn app:app --reload
   ```
 
-- **Run the FastAPI server:**
+- **Pull the model files (required — see notice below):**
   ```sh
-  uvicorn app:app --reload
+  git lfs install
+  git lfs pull
+  ```
+
+
+  ```sh
+uvicorn app.app:app --reload
+```
+Note: the FastAPI instance lives at `SkinTypeClassification/app/app.py` inside the `app` package,
+so the module path is `app.app:app`, not `app:app`. Run this from the `SkinTypeClassification` folder.
   ```
   The backend will be available at `http://localhost:8000`.
 
@@ -55,7 +67,17 @@ cd glowguide
 
 ## ⚡ Important Notice
 
-**Download all three models from this link and add them in SkinTypeClassification/app/models folder.**
+The three `.h5` model files in `SkinTypeClassification/app/models/` are tracked with **Git LFS**
+(~600MB each). If you clone this repo without Git LFS installed, you will get tiny text
+"pointer" files instead of the real models, and the server will fail to start.
+
+**Before running the backend:**
+```sh
+git lfs install
+git lfs pull
+```
+
+If you don't want to use Git LFS, download the models manually from this link and place them in `SkinTypeClassification/app/models/`:
 ```sh
   https://drive.google.com/drive/folders/1J-0y8fZgVZcsataaGYGgO3qcSBletV7J?usp=sharing
 ```
